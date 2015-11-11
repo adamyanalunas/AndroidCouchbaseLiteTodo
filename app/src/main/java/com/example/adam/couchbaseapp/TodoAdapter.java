@@ -15,7 +15,12 @@ import java.util.ArrayList;
  */
 public class TodoAdapter extends BaseAdapter {
 
-    public final static String TODO_TITLE = "todo";
+    public final static String DOC_TYPE = "type";
+    public final static String TODO_TYPE = "todo";
+    public final static String TODO_TITLE = "title";
+    public final static String TODO_CREATED = "created";
+    public final static String TODO_DUE = "due";
+    public final static String TODO_ORDER = "order";
 
     private Context context;
     private ArrayList<Document> documentList;
