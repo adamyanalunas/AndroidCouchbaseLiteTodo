@@ -1,6 +1,7 @@
 package com.example.adam.couchbaseapp;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
@@ -21,6 +22,9 @@ public class TodoAdapter extends BaseAdapter {
     public final static String TODO_CREATED = "created";
     public final static String TODO_DUE = "due";
     public final static String TODO_ORDER = "order";
+    public final static String TODO_DONE = "done";
+
+    public final static String QUERY_ALL_TODOS = "todos";
 
     private Context context;
     private ArrayList<Document> documentList;
@@ -64,8 +68,15 @@ public class TodoAdapter extends BaseAdapter {
                 todoTitle = (TextView) convertView;
             }
 
+            // TODO: Move all of this view config to a custom view that listens & responds to data changes
             currentDocument = this.documentList.get(position);
             todoTitle.setText(String.valueOf(currentDocument.getProperty(TODO_TITLE)));
+
+            // NOTE: Risky as this doesn't assure that the returned property != null
+            Boolean isDone = (Boolean) currentDocument.getProperty(TodoAdapter.TODO_DONE);
+            int textColor = isDone ? Color.LTGRAY : Color.DKGRAY;
+            todoTitle.setTextColor(textColor);
+
         } catch (Exception e) {
             e.printStackTrace();
         }

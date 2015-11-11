@@ -6,10 +6,13 @@ import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ListView;
+import android.widget.Toolbar;
 
 import com.couchbase.lite.Database;
 import com.couchbase.lite.Document;
@@ -27,8 +30,10 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -52,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setActionBar(toolbar);
 
         mTodoList = (ListView) findViewById(R.id.todo_list);
         mTodoArray = new ArrayList<Document>();
@@ -69,6 +76,7 @@ public class MainActivity extends AppCompatActivity {
 
         setupDatabase();
         addLongPressDelete(mTodoList);
+        addTapHandler(mTodoList);
 
         if (mCouchbaseDatabase != null) {
             createViews();
@@ -111,26 +119,32 @@ public class MainActivity extends AppCompatActivity {
 
     // Queries
     private void createViews() {
-        com.couchbase.lite.View dateSortView = mCouchbaseDatabase.getView("date_sort");
-        dateSortView.setMap(new Mapper() {
+        com.couchbase.lite.View allTodos = mCouchbaseDatabase.getView(TodoAdapter.QUERY_ALL_TODOS);
+        allTodos.setMap(new Mapper() {
             @Override
             public void map(Map<String, Object> document, Emitter emitter) {
-                if (document.get("type").equals("todo"));
+                if (document.get(TodoAdapter.DOC_TYPE).equals(TodoAdapter.TODO_TYPE)) {
+                    List<Object> key = new ArrayList<>();
+                    key.add(document.get(TodoAdapter.TODO_CREATED));
+                    emitter.emit(key, document);
+                }
             }
-        }, "0.1");
+        }, "0.2");
     }
 
     private Query allTodos() {
         return mCouchbaseDatabase.createAllDocumentsQuery();
     }
 
-//    public Query dateSorted(Sort sort) {
-//        Boolean ascending = sort.equals(Sort.Ascending);
-//
-//    }
+    public Query dateSorted(Sort sort) {
+        Query query = mCouchbaseDatabase.getView(TodoAdapter.QUERY_ALL_TODOS).createQuery();
+        query.setDescending(sort.equals(Sort.Descending));
+
+        return query;
+    }
 
     public Query activeQuery() {
-        return allTodos();
+        return dateSorted(Sort.Ascending);
     }
 
     // Listeners
@@ -168,6 +182,8 @@ public class MainActivity extends AppCompatActivity {
 
     // TODO: Update to receive broadcast from database change
     public void addEntry(Document document) {
+        // NOTE: Gee, it'd be great if a Set was available here
+        if (mTodoArray.contains(document)) return;
         mTodoArray.add(document);
     }
 
@@ -179,6 +195,7 @@ public class MainActivity extends AppCompatActivity {
         todoData.put(TodoAdapter.TODO_TITLE, title);
         todoData.put(TodoAdapter.TODO_CREATED, currentTime());
         todoData.put(TodoAdapter.TODO_ORDER, -1);
+        todoData.put(TodoAdapter.TODO_DONE, false);
         Log.e(LOG_TAG, "Create todo: " + todoData.toString());
 
         Document document = mCouchbaseDatabase.createDocument();
@@ -189,14 +206,29 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    public void toggleDone(Document document) {
+        Boolean isDone = (Boolean) document.getProperty(TodoAdapter.TODO_DONE);
+        Log.e(LOG_TAG, isDone.toString());
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.putAll(document.getProperties());
+        properties.put(TodoAdapter.TODO_DONE, !isDone);
+        try {
+            document.putProperties(properties);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     // Gestures
     private void addLongPressDelete(final ListView list) {
         list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
             @Override
             public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                final Document listItemDocument = (Document) list.getItemAtPosition(position);
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
                 builder.setTitle("Permanently delete todo?");
+
+                final Document listItemDocument = (Document) list.getItemAtPosition(position);
                 builder.setPositiveButton("Delete", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -217,6 +249,16 @@ public class MainActivity extends AppCompatActivity {
                 alert.setCanceledOnTouchOutside(true);
                 alert.show();
                 return true;
+            }
+        });
+    }
+
+    private void addTapHandler(final ListView list) {
+        list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                final Document listItemDocument = (Document) list.getItemAtPosition(position);
+                toggleDone(listItemDocument);
             }
         });
     }
@@ -244,4 +286,29 @@ public class MainActivity extends AppCompatActivity {
         alert.setCanceledOnTouchOutside(true);
         alert.show();
     }
+
+    // Options
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.menu_main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        // Handle action bar item clicks here. The action bar will
+        // automatically handle clicks on the Home/Up button, so long
+        // as you specify a parent activity in AndroidManifest.xml.
+        int id = item.getItemId();
+
+        //noinspection SimplifiableIfStatement
+        if (id == R.id.action_settings) {
+            Log.e(LOG_TAG, "Settings tapped");
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
 }
