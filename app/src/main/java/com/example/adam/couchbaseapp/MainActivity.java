@@ -23,17 +23,12 @@ import com.couchbase.lite.Query;
 import com.couchbase.lite.QueryEnumerator;
 import com.couchbase.lite.QueryRow;
 import com.couchbase.lite.android.AndroidContext;
+import com.example.adam.couchbaseapp.models.Todo;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -43,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private Manager mCouchbaseManager;
     private Database mCouchbaseDatabase;
     private ListView mTodoList;
-    private ArrayList<Document> mTodoArray;
+    private ArrayList<Todo> mTodoArray;
     private TodoAdapter mAdapter;
     private FloatingActionButton mFab;
 
@@ -61,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
         setActionBar(toolbar);
 
         mTodoList = (ListView) findViewById(R.id.todo_list);
-        mTodoArray = new ArrayList<Document>();
+        mTodoArray = new ArrayList<>();
         mAdapter = new TodoAdapter(this, mTodoArray);
         mTodoList.setAdapter(mAdapter);
 
@@ -100,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
             mCouchbaseDatabase = mCouchbaseManager.getDatabase(DATABASE_NAME);
         } catch (Exception e) {
             Log.e(LOG_TAG, "Damn it. Database creation failed.", e);
-            return;
         }
     }
 
@@ -113,7 +107,7 @@ public class MainActivity extends AppCompatActivity {
                 mAdapter.notifyDataSetChanged();
             }
         } catch (Exception e ) {
-            Log.e(LOG_TAG, "All documents query failed");
+            e.printStackTrace();
         }
     }
 
@@ -123,9 +117,9 @@ public class MainActivity extends AppCompatActivity {
         allTodos.setMap(new Mapper() {
             @Override
             public void map(Map<String, Object> document, Emitter emitter) {
-                if (document.get(TodoAdapter.DOC_TYPE).equals(TodoAdapter.TODO_TYPE)) {
+                if (document.get(Todo.DOC_TYPE).equals(Todo.TYPE)) {
                     List<Object> key = new ArrayList<>();
-                    key.add(document.get(TodoAdapter.TODO_CREATED));
+                    key.add(document.get(Todo.CREATED));
                     emitter.emit(key, document);
                 }
             }
@@ -166,12 +160,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Data
-    // TODO: Move to time helper
-    public String currentTime() {
-        DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.getDefault());
-        return formatter.format(Calendar.getInstance().getTime());
-    }
-
     // TODO: Update to receive broadcast from database change
     public void removeEntry(Document document) {
         int documentIndex = mAdapter.getIndexOf(document.getId());
@@ -181,43 +169,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // TODO: Update to receive broadcast from database change
-    public void addEntry(Document document) {
+    public void addEntry(Document doc) {
+        Todo todo = new Todo(doc);
         // NOTE: Gee, it'd be great if a Set was available here
-        if (mTodoArray.contains(document)) return;
-        mTodoArray.add(document);
+        if (mTodoArray.contains(todo)) return;
+        mTodoArray.add(todo);
     }
 
-    // TODO: Move into model
-    public void createTodo(String title) {
-        Map<String, Object> todoData = new HashMap<>();
-
-        todoData.put(TodoAdapter.DOC_TYPE, TodoAdapter.TODO_TYPE);
-        todoData.put(TodoAdapter.TODO_TITLE, title);
-        todoData.put(TodoAdapter.TODO_CREATED, currentTime());
-        todoData.put(TodoAdapter.TODO_ORDER, -1);
-        todoData.put(TodoAdapter.TODO_DONE, false);
-        Log.e(LOG_TAG, "Create todo: " + todoData.toString());
-
-        Document document = mCouchbaseDatabase.createDocument();
-        try {
-            document.putProperties(todoData);
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "Cannot write document to database");
-        }
-    }
-
-    public void toggleDone(Document document) {
-        Boolean isDone = (Boolean) document.getProperty(TodoAdapter.TODO_DONE);
-        Log.e(LOG_TAG, isDone.toString());
-
-        Map<String, Object> properties = new HashMap<>();
-        properties.putAll(document.getProperties());
-        properties.put(TodoAdapter.TODO_DONE, !isDone);
-        try {
-            document.putProperties(properties);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+    public Todo createTodo(String title) {
+        return new Todo(mCouchbaseDatabase, title);
     }
 
     // Gestures
@@ -228,15 +188,11 @@ public class MainActivity extends AppCompatActivity {
                 AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
                 builder.setTitle("Permanently delete todo?");
 
-                final Document listItemDocument = (Document) list.getItemAtPosition(position);
+                final Todo todo = (Todo) list.getItemAtPosition(position);
                 builder.setPositiveButton("Delete", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        try {
-                            listItemDocument.delete();
-                        } catch (Exception e) {
-                            Log.e(LOG_TAG, "Error deleting", e);
-                        }
+                        todo.delete();
                     }
                 });
                 builder.setNegativeButton("Leave", new DialogInterface.OnClickListener() {
@@ -257,8 +213,8 @@ public class MainActivity extends AppCompatActivity {
         list.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                final Document listItemDocument = (Document) list.getItemAtPosition(position);
-                toggleDone(listItemDocument);
+                final Todo todo = (Todo) list.getItemAtPosition(position);
+                todo.toggleDone();
             }
         });
     }
@@ -272,7 +228,7 @@ public class MainActivity extends AppCompatActivity {
         builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                createTodo(input.getText().toString());
+                createTodo(input.getText().toString()).save();
             }
         });
 
