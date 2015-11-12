@@ -3,6 +3,8 @@ package com.example.adam.couchbaseapp;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -65,14 +67,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-
-        mFab.setOnClickListener(null);
-    }
-
     // Setup
     private void populateEntries() {
         try {
@@ -124,6 +118,12 @@ public class MainActivity extends AppCompatActivity {
         mTodoArray.add(todo);
     }
 
+    public void resetEntries() {
+        mTodoArray.clear();
+        populateEntries();
+        mAdapter.notifyDataSetChanged();
+    }
+
     public Todo createTodo(String title) {
         return new Todo(mDatabase, title);
     }
@@ -163,8 +163,20 @@ public class MainActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 final Todo todo = (Todo) list.getItemAtPosition(position);
                 todo.toggleDone();
+                delayedResetEntries();
             }
         });
+    }
+
+    private void delayedResetEntries() {
+        Handler handler = new Handler(Looper.getMainLooper());
+        final Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                resetEntries();
+            }
+        };
+        handler.postDelayed(runnable, 500);
     }
 
     // Actions
@@ -196,7 +208,20 @@ public class MainActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
+
         return true;
+    }
+
+    @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem item = menu.findItem(R.id.toggle_visible);
+
+        Boolean hideCompleted = !mAdapter.getAreAllVisible();
+        int titleID = hideCompleted ? R.string.show_all_todos : R.string.hide_completed_todos;
+        String title = getResources().getString(titleID);
+        item.setTitle(title);
+
+        return super.onPrepareOptionsMenu(menu);
     }
 
     @Override
@@ -206,15 +231,9 @@ public class MainActivity extends AppCompatActivity {
         //noinspection SimplifiableIfStatement
         if (id == R.id.toggle_visible) {
             Boolean hideCompleted = mAdapter.getAreAllVisible();
-            int titleID = hideCompleted ? R.string.show_all_todos : R.string.hide_completed_todos;
-            String title = getResources().getString(titleID);
-            item.setTitle(title);
-
             mAdapter.setAreAllVisible(!hideCompleted);
-
-            mTodoArray.clear();
-            populateEntries();
-            mAdapter.notifyDataSetChanged();
+            resetEntries();
+            invalidateOptionsMenu();
 
             return true;
         }
