@@ -1,11 +1,15 @@
 package com.example.adam.couchbaseapp;
 
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.preference.PreferenceManager;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.TextView;
 
+import com.couchbase.lite.Query;
 import com.example.adam.couchbaseapp.models.Todo;
 
 import java.util.ArrayList;
@@ -15,14 +19,20 @@ import java.util.ArrayList;
  */
 public class TodoAdapter extends BaseAdapter {
 
-    public final static String QUERY_ALL_TODOS = "todos";
+    private final static String SHOW_ALL_KEY = "showAll";
 
     private Context mContext;
+    private SharedPreferences mPreferences;
+    private Boolean mShowAll;
     private ArrayList<Todo> mTodoList;
 
     public TodoAdapter(Context context, ArrayList<Todo> todoList) {
         mContext = context;
         mTodoList = todoList;
+
+        // TODO: Move out to custom perference manager to remove dependency
+        mPreferences = PreferenceManager.getDefaultSharedPreferences(context);
+        mShowAll = mPreferences.getBoolean(SHOW_ALL_KEY, true);
     }
 
     public int getCount() {
@@ -71,5 +81,19 @@ public class TodoAdapter extends BaseAdapter {
         }
 
         return todoTitle;
+    }
+    // Properties
+    public Query getActiveQuery() {
+        CouchDatabase couchDatabase = CouchDatabase.getInstance();
+        return mShowAll ? couchDatabase.dateSorted(CouchDatabase.Sort.Ascending) : couchDatabase.dateSortedActive(CouchDatabase.Sort.Ascending);
+    }
+
+    public Boolean getAreAllVisible() {
+        return mShowAll;
+    }
+
+    public void setAreAllVisible(Boolean allVisible) {
+        mShowAll = allVisible;
+        mPreferences.edit().putBoolean(SHOW_ALL_KEY, allVisible).apply();
     }
 }

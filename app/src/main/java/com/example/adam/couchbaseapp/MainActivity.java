@@ -5,7 +5,6 @@ import android.content.DialogInterface;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -16,31 +15,23 @@ import android.widget.Toolbar;
 
 import com.couchbase.lite.Database;
 import com.couchbase.lite.Document;
-import com.couchbase.lite.Emitter;
-import com.couchbase.lite.Mapper;
-import com.couchbase.lite.Query;
 import com.couchbase.lite.QueryEnumerator;
 import com.couchbase.lite.QueryRow;
 import com.example.adam.couchbaseapp.models.Todo;
 
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
     private final static String LOG_TAG = "MainActivity";
 
-    private Database mCouchbaseDatabase = CouchDatabase.getInstance().getDatabase();
+    private TodoAdapter mAdapter;
+    private CouchDatabase mCouchbase = CouchDatabase.getInstance();
+    private Database mDatabase = CouchDatabase.getInstance().getDatabase();
+    private FloatingActionButton mFab;
     private ListView mTodoList;
     private ArrayList<Todo> mTodoArray;
-    private TodoAdapter mAdapter;
-    private FloatingActionButton mFab;
-
-    public enum Sort {
-        Ascending, Descending
-    }
 
     // Lifecycle
     @Override
@@ -68,8 +59,7 @@ public class MainActivity extends AppCompatActivity {
         addLongPressDelete(mTodoList);
         addTapHandler(mTodoList);
 
-        if (mCouchbaseDatabase != null) {
-            createViews();
+        if (mDatabase != null) {
             listenForDatabaseChanges();
             populateEntries();
         }
@@ -86,53 +76,24 @@ public class MainActivity extends AppCompatActivity {
     // Setup
     private void populateEntries() {
         try {
-            QueryEnumerator queryResult = activeQuery().run();
+            QueryEnumerator queryResult = mAdapter.getActiveQuery().run();
             for (Iterator<QueryRow> it = queryResult; it.hasNext(); ) {
                 QueryRow row = it.next();
                 addEntry(row.getDocument());
                 mAdapter.notifyDataSetChanged();
             }
-        } catch (Exception e ) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // Queries
-    private void createViews() {
-        com.couchbase.lite.View allTodos = mCouchbaseDatabase.getView(TodoAdapter.QUERY_ALL_TODOS);
-        allTodos.setMap(new Mapper() {
-            @Override
-            public void map(Map<String, Object> document, Emitter emitter) {
-                if (document.get(Todo.DOC_TYPE).equals(Todo.TYPE)) {
-                    List<Object> key = new ArrayList<>();
-                    key.add(document.get(Todo.CREATED));
-                    emitter.emit(key, document);
-                }
-            }
-        }, "0.2");
-    }
-
-    private Query allTodos() {
-        return mCouchbaseDatabase.createAllDocumentsQuery();
-    }
-
-    public Query dateSorted(Sort sort) {
-        Query query = mCouchbaseDatabase.getView(TodoAdapter.QUERY_ALL_TODOS).createQuery();
-        query.setDescending(sort.equals(Sort.Descending));
-
-        return query;
-    }
-
-    public Query activeQuery() {
-        return dateSorted(Sort.Ascending);
-    }
-
     // Listeners
+    // TODO: Receive broadcast to remove CBL dependency
     private void listenForDatabaseChanges() {
-        mCouchbaseDatabase.addChangeListener(new Database.ChangeListener() {
+        mDatabase.addChangeListener(new Database.ChangeListener() {
             public void changed(Database.ChangeEvent event) {
                 for (int i = 0; i < event.getChanges().size(); i++) {
-                    Document retrievedDocument = mCouchbaseDatabase.getDocument(event.getChanges().get(i).getDocumentId());
+                    Document retrievedDocument = mDatabase.getDocument(event.getChanges().get(i).getDocumentId());
                     if (retrievedDocument.isDeleted()) {
                         removeEntry(retrievedDocument);
                     } else {
@@ -159,11 +120,12 @@ public class MainActivity extends AppCompatActivity {
         Todo todo = new Todo(doc);
         // NOTE: Gee, it'd be great if a Set was available here
         if (mTodoArray.contains(todo)) return;
+
         mTodoArray.add(todo);
     }
 
     public Todo createTodo(String title) {
-        return new Todo(mCouchbaseDatabase, title);
+        return new Todo(mDatabase, title);
     }
 
     // Gestures
@@ -239,14 +201,21 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
         //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            Log.e(LOG_TAG, "Settings tapped");
+        if (id == R.id.toggle_visible) {
+            Boolean hideCompleted = mAdapter.getAreAllVisible();
+            int titleID = hideCompleted ? R.string.show_all_todos : R.string.hide_completed_todos;
+            String title = getResources().getString(titleID);
+            item.setTitle(title);
+
+            mAdapter.setAreAllVisible(!hideCompleted);
+
+            mTodoArray.clear();
+            populateEntries();
+            mAdapter.notifyDataSetChanged();
+
             return true;
         }
 

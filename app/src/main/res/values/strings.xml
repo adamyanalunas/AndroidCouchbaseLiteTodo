@@ -1,4 +1,5 @@
 <resources>
-    <string name="app_name">CouchbaseApp</string>
-    <string name="action_settings">Settings</string>
+    <string name="app_name">Couch Todos</string>
+    <string name="show_all_todos">Show All</string>
+    <string name="hide_completed_todos">Hide Completed</string>
 </resources>
