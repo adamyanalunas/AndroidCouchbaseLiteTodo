@@ -6,7 +6,7 @@ This app will let you:
 
 * Create todos
 * Mark them as completed
-* View all ~~or just incomplete todos~~
+* View all or just incomplete todos
 * ~~Change order of todos~~
 
 ## Notes
