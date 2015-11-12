@@ -17,12 +17,10 @@ import android.widget.Toolbar;
 import com.couchbase.lite.Database;
 import com.couchbase.lite.Document;
 import com.couchbase.lite.Emitter;
-import com.couchbase.lite.Manager;
 import com.couchbase.lite.Mapper;
 import com.couchbase.lite.Query;
 import com.couchbase.lite.QueryEnumerator;
 import com.couchbase.lite.QueryRow;
-import com.couchbase.lite.android.AndroidContext;
 import com.example.adam.couchbaseapp.models.Todo;
 
 import java.util.ArrayList;
@@ -33,10 +31,8 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
     private final static String LOG_TAG = "MainActivity";
-    public final static String DATABASE_NAME = "mydb";
 
-    private Manager mCouchbaseManager;
-    private Database mCouchbaseDatabase;
+    private Database mCouchbaseDatabase = CouchDatabase.getInstance().getDatabase();
     private ListView mTodoList;
     private ArrayList<Todo> mTodoArray;
     private TodoAdapter mAdapter;
@@ -69,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
         });
 //        mTodoList.setOnTouchListener(new ShowHideOnScroll(mFab));
 
-        setupDatabase();
         addLongPressDelete(mTodoList);
         addTapHandler(mTodoList);
 
@@ -89,15 +84,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Setup
-    private void setupDatabase() {
-        try {
-            mCouchbaseManager = new Manager(new AndroidContext(this), Manager.DEFAULT_OPTIONS);
-            mCouchbaseDatabase = mCouchbaseManager.getDatabase(DATABASE_NAME);
-        } catch (Exception e) {
-            Log.e(LOG_TAG, "Damn it. Database creation failed.", e);
-        }
-    }
-
     private void populateEntries() {
         try {
             QueryEnumerator queryResult = activeQuery().run();
